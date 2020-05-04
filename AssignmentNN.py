@@ -37,19 +37,7 @@ def softmax(a):
     den = sum([math.exp(a[i]) for i in range(n)])
     return np.array([math.exp(a[i])/den for i in range(n)])
 
-class NeuralNetwork:
-    def __init__(self, x, y):
-        self.input      = x
-        self.weights1   = np.random.rand(self.input.shape[1], self.input.shape[1]) 
-        self.weights2   = np.random.rand(self.input.shape[1], self.input.shape[1])                 
-        self.y          = y
-        
-        self.output     = np.zeros(self.y.shape)
 
-    def feedforward(self, func, outf):
-        self.layer1 = func(np.dot(self.input, self.weights1))
-        self.output = outf(np.dot(self.layer1, self.weights2))
-        
 # class hiddenlayer:
 #     def _init_(self, n_size, )
 
@@ -64,6 +52,30 @@ class hiddenlayer:
     def forward(self, func):
         self.output = func(self.weights.dot(self.input) + self.bias)
 
+class NeuralNet:
+    def __init__(self, X, ydim, depth):
+        self.input      = X[0]
+        self.hiddenlayers = [hiddenlayer(X.shape[1], X.shape[1]) for i in range(depth)]
+        self.outputlayer = hiddenlayer(X.shape[1], ydim)
+        self.h_params = [X[0] for i in range(depth+2)]
+        self.a_params = [sigmoid_vec(X[0]) for i in range(depth+2)]
+        self.output = onehot(0, ydim)
+        
+    def feedforward(self, actfunc, outfunc):
+        self.h_params[0] = self.input
+        L = len(self.hiddenlayers)+1
+        for k in range(1, L):
+            ht = np.array([self.h_params[k-1]]).transpose()
+            W = self.hiddenlayers[k-1].weights
+            b = np.array([self.hiddenlayers[k-1].bias]).transpose()
+            self.a_params[k] = b + W.dot(ht) 
+            self.h_params[k] = actfunc(self.a_params[k])
+            
+        ht = np.array([self.h_params[L-1]]).transpose()
+        W = self.outputlayer.weights
+        b = np.array([self.outputlayer.bias]).transpose()
+        self.a_params[L] = b + W.dot(ht)
+        self.output = outfunc(self.a_params[L])
 def hadamardprod(v1, v2):
     prod = np.array([v1[i]*v2[i] for i in range(len(v1))])
     return np.array([prod])
@@ -97,38 +109,20 @@ def backprop(layers, y):
 iris = datasets.load_iris()
 X = iris.data[:, :2]  # we only take the first two features.
 y = iris.target
-
-layer1 = hiddenlayer(X[0], 2)
-layer1.weights = np.array([[1, 0], [0, 1]])
-layer1.bias = -1*X[0]
-# layer1.forward(sigmoid_vec)
-print(layer1.output)
-
-layer2 = hiddenlayer(layer1.output, 2)
-layer2.weights = np.array([[1, 0], [0, 1]])
-layer2.bias = np.array([2, 1])
-# layer2.forward(softmax)
-
-outlayer = hiddenlayer(layer2.output, 3)
-# outlayer.weights = np.array([[1, 0], [0, 1]])
-outlayer.bias = np.array([1, 1, 1])
-
-layers = [layer1, layer2, outlayer]
-forwardpass(X[0], layers, sigmoid_vec, softmax)
-print(outlayer.output)
-
+NN = NeuralNet(X, 3, 2)
+NN.feedforward(sigmoid_vec, softmax)
+L = len(NN.hiddenlayers)+1
 y = np.array([1, 0, 0])
-yhat = layers[-1].output
-L = len(layers)-1
-grad_a, grad_b, grad_w, grad_h, h, a = ([i for i in np.zeros(L+1)], ) * 6
-grad_a[L] = np.array([-1*(y - yhat)])
-h[L] = np.array([layers[L].output])
-a[L] = np.array([layers[L].input])
-
-for k in reversed(range(L+1)):
-    print(k)
-    h[k-1] = np.array([layers[k-1].output])
-    grad_w[k] =  grad_a[k].dot(h[k-1].transpose())
-    grad_b[k] = grad_a[k]
-    grad_h[k-1] = layers[k].weights.transpose().dot(grad_a[k])
-    grad_a[k-1] = np.multiply(grad_h[k-1], np.array([der_sigmoid_vec(layers[k-1].input)]))
+yhat = NN.output
+grad_a, grad_w, grad_h, grad_b, W = ([0 for i in range(L+1)], )*5
+W[1:L] = [NN.hiddenlayers[k].weights for k in range(len(NN.hiddenlayers))]
+W[L] = NN.outputlayer.weights
+grad_a[L] = np.matrix([-1*(y - yhat)]).transpose()
+k = L
+print(np.matrix([NN.h_params[k-1]]).shape)
+# grad_w[k] =  grad_a[k] * np.matrix([NN.h_params[k-1]])
+# print(grad_w[k].shape)
+# # grad_b[k] = grad_a[k]
+# # grad_h[k-1] = np.matmul(W[k].transpose(), grad_a[k])
+# # grad_a[k-1] = np.multiply(grad_h[k-1], np.array([der_sigmoid_vec(layers[k-1].input)]))
+# print(grad_a[k])
